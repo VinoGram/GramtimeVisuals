@@ -1,0 +1,482 @@
+/* ─────────────────────────────────────────────────────────────
+   KEYFRAMES
+───────────────────────────────────────────────────────────── */
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-10px); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.5; }
+}
+
+/* spin — used on loading / circular icons */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* wiggle — playful shake on hover */
+@keyframes wiggle {
+  0%, 100% { transform: rotate(0deg); }
+  20%       { transform: rotate(-12deg); }
+  40%       { transform: rotate(12deg); }
+  60%       { transform: rotate(-8deg); }
+  80%       { transform: rotate(8deg); }
+}
+
+/* pop — quick scale burst */
+@keyframes pop {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.3); }
+  70%  { transform: scale(0.9); }
+  100% { transform: scale(1); }
+}
+
+/* float — gentle up-down loop */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-6px); }
+}
+
+/* draw-in — stroke dashoffset reveal */
+@keyframes drawIn {
+  from { stroke-dashoffset: 200; }
+  to   { stroke-dashoffset: 0; }
+}
+
+/* glow-pulse — green glow throb */
+@keyframes glowPulse {
+  0%, 100% { filter: drop-shadow(0 0 2px rgba(74,222,128,0.4)); }
+  50%       { filter: drop-shadow(0 0 8px rgba(74,222,128,0.9)); }
+}
+
+/* arrow-slide — nudge right then back */
+@keyframes arrowSlide {
+  0%, 100% { transform: translateX(0); }
+  50%       { transform: translateX(5px); }
+}
+
+/* bounce-dot — for the "available" status dot */
+@keyframes bounceDot {
+  0%, 80%, 100% { transform: scale(1); }
+  40%            { transform: scale(1.6); }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   BASE RESETS
+───────────────────────────────────────────────────────────── */
+
+html { scroll-behavior: smooth; }
+*, *::before, *::after { box-sizing: border-box; }
+
+/* ─────────────────────────────────────────────────────────────
+   GLOBAL SVG ICON ANIMATIONS
+   All <svg> elements get a smooth scale + glow on hover
+───────────────────────────────────────────────────────────── */
+
+svg {
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+              filter 0.25s ease;
+  will-change: transform;
+}
+
+/* Any clickable / interactive parent that holds an svg */
+a svg,
+button svg,
+[role="button"] svg,
+[cursor="pointer"] svg {
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+              filter 0.25s ease;
+}
+
+a:hover svg,
+button:hover svg,
+[role="button"]:hover svg {
+  transform: scale(1.2);
+  filter: drop-shadow(0 0 6px rgba(74, 222, 128, 0.5));
+}
+
+/* ─────────────────────────────────────────────────────────────
+   FOOTER SOCIAL ICON BUTTONS
+   The square icon wrappers in Footer.tsx
+───────────────────────────────────────────────────────────── */
+
+.social-icon-btn {
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+              background-color 0.2s ease,
+              border-color 0.2s ease !important;
+}
+
+.social-icon-btn svg {
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+              filter 0.3s ease;
+}
+
+.social-icon-btn:hover svg {
+  transform: scale(1.25) rotate(-10deg);
+  filter: drop-shadow(0 0 6px rgba(74, 222, 128, 0.8));
+  animation: none;
+}
+
+footer a svg {
+  animation: float 3s ease-in-out infinite;
+  animation-play-state: paused;
+}
+
+footer a:hover svg {
+  animation-play-state: running;
+}
+
+/* Stagger float per icon */
+footer a:nth-child(1) svg { animation-delay: 0s; }
+footer a:nth-child(2) svg { animation-delay: 0.2s; }
+footer a:nth-child(3) svg { animation-delay: 0.4s; }
+footer a:nth-child(4) svg { animation-delay: 0.6s; }
+
+/* ─────────────────────────────────────────────────────────────
+   NAVIGATION HAMBURGER BARS
+   Already animated via React state — add glow on open
+───────────────────────────────────────────────────────────── */
+
+.nav-container button:hover > div {
+  filter: drop-shadow(0 0 4px rgba(34, 197, 94, 0.6));
+}
+
+/* ─────────────────────────────────────────────────────────────
+   ARROW / CHEVRON TEXT SYMBOLS  (→ ← ↗ ↩)
+   Target text nodes that are purely arrow characters
+───────────────────────────────────────────────────────────── */
+
+.icon-arrow {
+  display: inline-block;
+  transition: transform 0.2s ease;
+}
+
+.icon-arrow-right { animation: arrowSlide 1.4s ease-in-out infinite; }
+.icon-arrow-up    { animation: arrowSlide 1.4s ease-in-out infinite; transform-origin: center; }
+
+/* Arrow inside buttons — slide on hover */
+button:hover .icon-arrow,
+a:hover .icon-arrow {
+  transform: translateX(4px);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   CHECKMARK ICONS  (✓ in bento tiles, service cards, etc.)
+───────────────────────────────────────────────────────────── */
+
+.icon-check {
+  display: inline-block;
+  animation: pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* Re-trigger pop when parent is hovered */
+*:hover > .icon-check {
+  animation: pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   EMOJI ICONS  (💬 💍 📸 ✦ in ConsultationBooking cards)
+───────────────────────────────────────────────────────────── */
+
+.icon-emoji {
+  display: inline-block;
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+*:hover > .icon-emoji,
+.bento-card:hover .icon-emoji {
+  animation: wiggle 0.5s ease both;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   BENTO CARD ICON BOXES
+   The coloured square icon containers in Services & Consultation
+───────────────────────────────────────────────────────────── */
+
+.bento-icon-box {
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+              box-shadow 0.3s ease;
+}
+
+*:hover > .bento-icon-box,
+.bento-card:hover .bento-icon-box {
+  transform: rotate(-8deg) scale(1.1);
+  box-shadow: 4px 4px 0 #000;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   STATUS / AVAILABILITY DOT  (green pulse dot in footer)
+───────────────────────────────────────────────────────────── */
+
+.status-dot {
+  display: inline-block;
+  animation: bounceDot 2s ease-in-out infinite;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   PORTFOLIO / GALLERY HOVER ICONS
+───────────────────────────────────────────────────────────── */
+
+.gallery-icon {
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+              opacity 0.3s ease;
+}
+
+*:hover > .gallery-icon {
+  transform: scale(1.25) rotate(5deg);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   SERVICES BENTO — checkmark circles
+───────────────────────────────────────────────────────────── */
+
+.check-circle {
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+              background-color 0.2s ease;
+}
+
+*:hover .check-circle {
+  transform: scale(1.2);
+  background-color: #22c55e !important;
+}
+
+*:hover .check-circle span {
+  color: white !important;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   GLOWING SVG PATHS — for decorative SVGs (intro, hero)
+───────────────────────────────────────────────────────────── */
+
+.svg-glow path,
+.svg-glow circle,
+.svg-glow rect {
+  animation: glowPulse 2.5s ease-in-out infinite;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   DURATION BADGE in consultation cards
+───────────────────────────────────────────────────────────── */
+
+.duration-badge {
+  transition: transform 0.2s ease, background-color 0.2s ease;
+}
+
+*:hover .duration-badge {
+  transform: scale(1.08) rotate(-2deg);
+  background-color: #22c55e !important;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   STEP INDICATOR CIRCLES
+───────────────────────────────────────────────────────────── */
+
+.step-circle {
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+              box-shadow 0.2s ease;
+}
+
+.step-circle.active {
+  animation: glowPulse 2s ease-in-out infinite;
+}
+
+.step-circle:hover {
+  transform: scale(1.15);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   UTILITY ANIMATION CLASSES
+───────────────────────────────────────────────────────────── */
+
+.animate-fadeIn  { animation: fadeIn 1.5s ease-in; }
+.animate-bounce  { animation: bounce 2s infinite; }
+.animate-pulse   { animation: pulse 2s ease-in-out infinite; }
+.animate-spin    { animation: spin 1s linear infinite; }
+.animate-float   { animation: float 3s ease-in-out infinite; }
+.animate-wiggle  { animation: wiggle 0.5s ease both; }
+.animate-pop     { animation: pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.animate-glow    { animation: glowPulse 2.5s ease-in-out infinite; }
+
+/* ─────────────────────────────────────────────────────────────
+   AR / HUD DESIGN SYSTEM
+   Shared by Portfolio.tsx and ConsultationBooking.tsx
+───────────────────────────────────────────────────────────── */
+
+@keyframes scanline {
+  0%   { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+
+@keyframes hudPulse {
+  0%, 100% { opacity: 0.6; }
+  50%       { opacity: 1; }
+}
+
+@keyframes cornerBlink {
+  0%, 90%, 100% { opacity: 1; }
+  95%            { opacity: 0; }
+}
+
+@keyframes glitchX {
+  0%, 100% { transform: translateX(0); }
+  20%       { transform: translateX(-3px); }
+  40%       { transform: translateX(3px); }
+  60%       { transform: translateX(-2px); }
+  80%       { transform: translateX(2px); }
+}
+
+@keyframes depthFloat {
+  0%, 100% { transform: translateZ(0px) translateY(0px); }
+  50%       { transform: translateZ(20px) translateY(-6px); }
+}
+
+@keyframes reticleRotate {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+@keyframes dataStream {
+  0%   { opacity: 0; transform: translateY(8px); }
+  50%  { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-8px); }
+}
+
+@keyframes holoBorder {
+  0%, 100% { border-color: rgba(74,222,128,0.4); box-shadow: 0 0 8px rgba(74,222,128,0.2); }
+  50%       { border-color: rgba(74,222,128,0.9); box-shadow: 0 0 24px rgba(74,222,128,0.5), inset 0 0 12px rgba(74,222,128,0.1); }
+}
+
+@keyframes arFadeIn {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.ar-card {
+  transition: transform 0.4s cubic-bezier(0.22,1,0.36,1), box-shadow 0.4s ease;
+  transform-style: preserve-3d;
+  perspective: 800px;
+}
+
+.ar-card:hover {
+  transform: translateY(-8px) rotateX(4deg) rotateY(-2deg);
+  box-shadow: 0 32px 64px rgba(0,0,0,0.6), 0 0 40px rgba(74,222,128,0.15);
+}
+
+.ar-card:hover .hud-overlay { opacity: 1; }
+.ar-card:hover .corner-tl,
+.ar-card:hover .corner-tr,
+.ar-card:hover .corner-bl,
+.ar-card:hover .corner-br { opacity: 1; }
+.ar-card:hover .scan-line { animation: scanline 1.5s linear infinite; }
+.ar-card:hover .card-img { transform: scale(1.08); filter: brightness(0.7); }
+.ar-card:hover .meta-panel { transform: translateY(0); opacity: 1; }
+.ar-card:hover .glitch-title { animation: glitchX 0.3s ease 0.1s; }
+
+.hud-overlay {
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.card-img {
+  transition: transform 0.6s cubic-bezier(0.22,1,0.36,1), filter 0.4s ease;
+}
+
+.meta-panel {
+  transform: translateY(20px);
+  opacity: 0;
+  transition: transform 0.4s cubic-bezier(0.22,1,0.36,1), opacity 0.3s ease;
+}
+
+.corner-tl, .corner-tr, .corner-bl, .corner-br {
+  position: absolute;
+  width: 16px; height: 16px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  animation: cornerBlink 3s ease-in-out infinite;
+}
+
+.corner-tl { top: 8px;  left: 8px;  border-top: 2px solid #4ade80; border-left: 2px solid #4ade80; }
+.corner-tr { top: 8px;  right: 8px; border-top: 2px solid #4ade80; border-right: 2px solid #4ade80; }
+.corner-bl { bottom: 8px; left: 8px;  border-bottom: 2px solid #4ade80; border-left: 2px solid #4ade80; }
+.corner-br { bottom: 8px; right: 8px; border-bottom: 2px solid #4ade80; border-right: 2px solid #4ade80; }
+
+.scan-line {
+  position: absolute; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(74,222,128,0.8), transparent);
+  pointer-events: none; z-index: 5;
+  opacity: 0.7;
+}
+
+.holo-filter { animation: holoBorder 2.5s ease-in-out infinite; }
+.reticle { animation: reticleRotate 4s linear infinite; }
+.hud-pulse { animation: hudPulse 2s ease-in-out infinite; }
+.data-stream { animation: dataStream 2s ease-in-out infinite; }
+.ar-fade-in { animation: arFadeIn 0.5s ease-out both; }
+
+/* Consultation-specific AR inputs */
+.ar-input {
+  width: 100%;
+  padding: 12px 14px;
+  background: #0a0a0a;
+  border: 1px solid rgba(74,222,128,0.3);
+  color: #fff;
+  font-family: monospace;
+  font-weight: 600;
+  font-size: 0.95rem;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.ar-input::placeholder { color: rgba(255,255,255,0.3); }
+
+.ar-input:focus {
+  border-color: rgba(74,222,128,0.8);
+  box-shadow: 0 0 12px rgba(74,222,128,0.2), inset 0 0 8px rgba(74,222,128,0.05);
+}
+
+.ar-select {
+  appearance: none;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%234ade80' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  padding-right: 36px;
+}
+
+.ar-btn {
+  font-family: monospace;
+  background: transparent;
+  border: 1px solid rgba(74,222,128,0.4);
+  color: #4ade80;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.ar-btn:hover {
+  background: rgba(74,222,128,0.1);
+  box-shadow: 0 0 20px rgba(74,222,128,0.2);
+}
+
+.ar-btn-primary {
+  font-family: monospace;
+  background: rgba(74,222,128,0.15);
+  border: 1px solid rgba(74,222,128,0.8);
+  color: #4ade80;
+  cursor: pointer;
+  box-shadow: 0 0 20px rgba(74,222,128,0.1);
+  transition: all 0.3s;
+}
+
+.ar-btn-primary:hover {
+  background: rgba(74,222,128,0.25);
+  box-shadow: 0 0 28px rgba(74,222,128,0.3);
+}
