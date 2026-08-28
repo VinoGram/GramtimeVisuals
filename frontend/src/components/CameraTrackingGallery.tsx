@@ -1,386 +1,509 @@
-import { useState, useRef, useEffect } from "react";
-import { toast } from "sonner";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { Box, Flex, Text, Image } from "@chakra-ui/react";
+import { Hands, Results, HAND_CONNECTIONS } from "@mediapipe/hands";
+import { Camera } from "@mediapipe/camera_utils";
 
-interface Image {
-  id: string;
-  url: string;
-  thumbnail: string;
-  title: string;
-  category: string;
+const API = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+
+function dist(a: { x: number; y: number }, b: { x: number; y: number }) {
+  return Math.hypot(a.x - b.x, a.y - b.y);
 }
+function isPinching(lm: any[]) { return dist(lm[4], lm[8]) < 0.065; }
 
-interface HandPosition {
-  x: number;
-  y: number;
-  isDetected: boolean;
-}
-
-const sampleImages: Image[] = [
-  {
-    id: "1",
-    url: "https://images.unsplash.com/photo-1519741497674-611481863552?w=1920",
-    thumbnail: "https://images.unsplash.com/photo-1519741497674-611481863552?w=400",
-    title: "Elegant Wedding",
-    category: "Wedding"
-  },
-  {
-    id: "2",
-    url: "https://images.unsplash.com/photo-1606800052052-a08af7148866?w=1920",
-    thumbnail: "https://images.unsplash.com/photo-1606800052052-a08af7148866?w=400",
-    title: "Reception Moments",
-    category: "Wedding"
-  },
-  {
-    id: "3",
-    url: "https://images.unsplash.com/photo-1511285560929-80b456fea0bc?w=1920",
-    thumbnail: "https://images.unsplash.com/photo-1511285560929-80b456fea0bc?w=400",
-    title: "Couple Portrait",
-    category: "Portrait"
-  },
-  {
-    id: "4",
-    url: "https://images.unsplash.com/photo-1465495976277-4387d4b0b4c6?w=1920",
-    thumbnail: "https://images.unsplash.com/photo-1465495976277-4387d4b0b4c6?w=400",
-    title: "Wedding Details",
-    category: "Details"
-  },
-  {
-    id: "5",
-    url: "https://images.unsplash.com/photo-1583939003579-730e3918a45a?w=1920",
-    thumbnail: "https://images.unsplash.com/photo-1583939003579-730e3918a45a?w=400",
-    title: "First Dance",
-    category: "Wedding"
-  },
-  {
-    id: "6",
-    url: "https://images.unsplash.com/photo-1591604466107-ec97de577aff?w=1920",
-    thumbnail: "https://images.unsplash.com/photo-1591604466107-ec97de577aff?w=400",
-    title: "Wedding Rings",
-    category: "Details"
+// tip landmarks: index=8, middle=10, ring=14, pinky=18; base knuckles: 6,10,14,18
+function countFingers(lm: any[]): number {
+  // thumb: tip x vs base x (mirrored)
+  const tips = [8, 12, 16, 20];
+  const bases = [6, 10, 14, 18];
+  let count = 0;
+  for (let i = 0; i < 4; i++) {
+    if (lm[tips[i]].y < lm[bases[i]].y) count++;
   }
-];
+  return count;
+}
+
+interface CardState {
+  id: string; url: string; title: string; category: string; location: string;
+  x: number; y: number; rot: number; z: number; vx: number; vy: number;
+}
+
+function HUDCorners() {
+  return (
+    <>
+      <div className="corner-tl" /><div className="corner-tr" />
+      <div className="corner-bl" /><div className="corner-br" />
+    </>
+  );
+}
+
+// ── Gesture label SVG icons ──────────────────────────────────────────────────
+function IconPinch() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4ade80" strokeWidth="1.5" strokeLinecap="round">
+      <circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/>
+      <path d="M9 6.5v5l-2 4h10l-2-4v-5"/>
+      <path d="M9 10h6"/>
+    </svg>
+  );
+}
+function IconSwipe() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4ade80" strokeWidth="1.5" strokeLinecap="round">
+      <path d="M5 12h14M15 8l4 4-4 4"/>
+    </svg>
+  );
+}
+function IconPalm() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4ade80" strokeWidth="1.5" strokeLinecap="round">
+      <path d="M8 4v8M11 3v9M14 4v8M17 6v6M6 14c0 3 2 5 6 5s6-2 6-5v-2H6v2z"/>
+    </svg>
+  );
+}
 
 export function CameraTrackingGallery() {
-  const [isCameraEnabled, setIsCameraEnabled] = useState(false);
-  const [handPosition, setHandPosition] = useState<HandPosition>({ x: 0, y: 0, isDetected: false });
-  const [selectedImage, setSelectedImage] = useState<Image | null>(null);
-  const [hoveredImage, setHoveredImage] = useState<string | null>(null);
-  const [draggedImage, setDraggedImage] = useState<string | null>(null);
-  const [imagePositions, setImagePositions] = useState<Record<string, { x: number; y: number; rotation: number }>>({});
-  
+  const [cards, setCards] = useState<CardState[]>([]);
+  const [cameraOn, setCameraOn] = useState(false);
+  const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [gesture, setGesture] = useState("AWAITING INPUT");
+  const [lightbox, setLightbox] = useState<CardState | null>(null);
+  const [handDetected, setHandDetected] = useState(false);
+
+  const stageRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const galleryRef = useRef<HTMLDivElement>(null);
-  const animationFrameRef = useRef<number>();
+  const handsRef = useRef<Hands | null>(null);
+  const cameraRef = useRef<Camera | null>(null);
+  const dragging = useRef<{ id: string; offX: number; offY: number } | null>(null);
+  const lastPinchPos = useRef<{ x: number; y: number } | null>(null);
+  const prevPinchPos = useRef<{ x: number; y: number } | null>(null);
+  const zCounter = useRef(10);
+  const mouseDragging = useRef<{ id: string; offX: number; offY: number } | null>(null);
+  const gestureDebounce = useRef(false);
+  const scatterRef = useRef<() => void>(() => {});
+  const stackRef = useRef<() => void>(() => {});
 
-  // Initialize camera and hand tracking
-  const initializeCamera = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { 
-          width: 640, 
-          height: 480,
-          facingMode: 'user'
-        } 
-      });
-      
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.play();
-        setIsCameraEnabled(true);
-        toast.success("Camera tracking enabled! Move your hand to interact with images.");
-        startHandTracking();
-      }
-    } catch (error) {
-      console.error("Camera access denied:", error);
-      toast.error("Camera access required for hand tracking feature.");
-    }
-  };
-
-  // Simple hand tracking using color detection (basic implementation)
-  const startHandTracking = () => {
-    const detectHand = () => {
-      if (!videoRef.current || !canvasRef.current) return;
-
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
-      const ctx = canvas.getContext('2d');
-      
-      if (!ctx) return;
-
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      
-      // Simple hand detection based on skin color (basic implementation)
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const data = imageData.data;
-      
-      let handX = 0;
-      let handY = 0;
-      let pixelCount = 0;
-      
-      // Look for skin-colored pixels (simplified)
-      for (let i = 0; i < data.length; i += 4) {
-        const r = data[i];
-        const g = data[i + 1];
-        const b = data[i + 2];
-        
-        // Basic skin color detection
-        if (r > 95 && g > 40 && b > 20 && 
-            Math.max(r, g, b) - Math.min(r, g, b) > 15 &&
-            Math.abs(r - g) > 15 && r > g && r > b) {
-          
-          const pixelIndex = i / 4;
-          const x = pixelIndex % canvas.width;
-          const y = Math.floor(pixelIndex / canvas.width);
-          
-          handX += x;
-          handY += y;
-          pixelCount++;
-        }
-      }
-      
-      if (pixelCount > 1000) { // Minimum threshold for hand detection
-        const avgX = handX / pixelCount;
-        const avgY = handY / pixelCount;
-        
-        // Convert to screen coordinates
-        const galleryRect = galleryRef.current?.getBoundingClientRect();
-        if (galleryRect) {
-          const screenX = (avgX / canvas.width) * galleryRect.width;
-          const screenY = (avgY / canvas.height) * galleryRect.height;
-          
-          setHandPosition({
-            x: screenX,
-            y: screenY,
-            isDetected: true
-          });
-          
-          // Check for image interaction
-          checkImageInteraction(screenX, screenY);
-        }
-      } else {
-        setHandPosition(prev => ({ ...prev, isDetected: false }));
-      }
-      
-      animationFrameRef.current = requestAnimationFrame(detectHand);
-    };
-    
-    detectHand();
-  };
-
-  // Check if hand is interacting with images
-  const checkImageInteraction = (x: number, y: number) => {
-    const images = document.querySelectorAll('.trackable-image');
-    images.forEach((img, index) => {
-      const rect = img.getBoundingClientRect();
-      const galleryRect = galleryRef.current?.getBoundingClientRect();
-      
-      if (galleryRect) {
-        const relativeX = x;
-        const relativeY = y;
-        const imgX = rect.left - galleryRect.left;
-        const imgY = rect.top - galleryRect.top;
-        
-        if (relativeX >= imgX && relativeX <= imgX + rect.width &&
-            relativeY >= imgY && relativeY <= imgY + rect.height) {
-          
-          const imageId = sampleImages[index].id;
-          setHoveredImage(imageId);
-          
-          // Add floating effect
-          setImagePositions(prev => ({
-            ...prev,
-            [imageId]: {
-              x: (relativeX - imgX - rect.width / 2) * 0.1,
-              y: (relativeY - imgY - rect.height / 2) * 0.1,
-              rotation: Math.sin(Date.now() * 0.01) * 5
-            }
-          }));
-        }
-      }
-    });
-  };
-
-  // Stop camera
-  const stopCamera = () => {
-    if (videoRef.current?.srcObject) {
-      const stream = videoRef.current.srcObject as MediaStream;
-      stream.getTracks().forEach(track => track.stop());
-      videoRef.current.srcObject = null;
-    }
-    
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-    }
-    
-    setIsCameraEnabled(false);
-    setHandPosition({ x: 0, y: 0, isDetected: false });
-    toast.info("Camera tracking disabled.");
-  };
-
-  // Cleanup on unmount
   useEffect(() => {
-    return () => {
-      stopCamera();
-    };
+    fetch(`${API}/portfolio`)
+      .then(r => r.json())
+      .then(({ images }) => {
+        const imgs: any[] = images || [];
+        setCards(imgs.map((img, i) => ({
+          id: img.id, url: img.url, title: img.title || "",
+          category: img.category || "", location: img.location || "",
+          x: 80 + (i % 4) * 230 + Math.random() * 30,
+          y: 80 + Math.floor(i / 4) * 270 + Math.random() * 30,
+          rot: (Math.random() - 0.5) * 14,
+          z: i + 1, vx: 0, vy: 0,
+        })));
+      })
+      .catch(() => setCards([]));
   }, []);
 
+  // physics
+  useEffect(() => {
+    let raf: number;
+    const tick = () => {
+      setCards(prev => prev.map(c => {
+        if (dragging.current?.id === c.id) return c;
+        if (Math.abs(c.vx) < 0.1 && Math.abs(c.vy) < 0.1) return c;
+        return { ...c, x: c.x + c.vx, y: c.y + c.vy, vx: c.vx * 0.88, vy: c.vy * 0.88 };
+      }));
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const bringToFront = useCallback((id: string) => {
+    zCounter.current += 1;
+    const z = zCounter.current;
+    setCards(prev => prev.map(c => c.id === id ? { ...c, z } : c));
+    return z;
+  }, []);
+
+  // mouse drag
+  const onMouseDown = useCallback((e: React.MouseEvent, id: string) => {
+    e.preventDefault();
+    bringToFront(id);
+    const stage = stageRef.current!.getBoundingClientRect();
+    const card = cards.find(c => c.id === id)!;
+    mouseDragging.current = { id, offX: e.clientX - stage.left - card.x, offY: e.clientY - stage.top - card.y };
+  }, [cards, bringToFront]);
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!mouseDragging.current || !stageRef.current) return;
+      const stage = stageRef.current.getBoundingClientRect();
+      const { id, offX, offY } = mouseDragging.current;
+      setCards(prev => prev.map(c => c.id === id
+        ? { ...c, x: e.clientX - stage.left - offX, y: e.clientY - stage.top - offY, vx: 0, vy: 0 } : c));
+    };
+    const onUp = () => { mouseDragging.current = null; };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); };
+  }, []);
+
+  // touch drag
+  const onTouchStart = useCallback((e: React.TouchEvent, id: string) => {
+    bringToFront(id);
+    const stage = stageRef.current!.getBoundingClientRect();
+    const card = cards.find(c => c.id === id)!;
+    const t = e.touches[0];
+    mouseDragging.current = { id, offX: t.clientX - stage.left - card.x, offY: t.clientY - stage.top - card.y };
+  }, [cards, bringToFront]);
+
+  useEffect(() => {
+    const onMove = (e: TouchEvent) => {
+      if (!mouseDragging.current || !stageRef.current) return;
+      const stage = stageRef.current.getBoundingClientRect();
+      const { id, offX, offY } = mouseDragging.current;
+      const t = e.touches[0];
+      setCards(prev => prev.map(c => c.id === id
+        ? { ...c, x: t.clientX - stage.left - offX, y: t.clientY - stage.top - offY, vx: 0, vy: 0 } : c));
+    };
+    const onEnd = () => { mouseDragging.current = null; };
+    window.addEventListener("touchmove", onMove, { passive: true });
+    window.addEventListener("touchend", onEnd);
+    return () => { window.removeEventListener("touchmove", onMove); window.removeEventListener("touchend", onEnd); };
+  }, []);
+
+  const onResults = useCallback((results: Results) => {
+    const lm = results.multiHandLandmarks?.[0] ?? null;
+    const canvas = canvasRef.current;
+    if (canvas) {
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        if (lm) {
+          ctx.strokeStyle = "rgba(74,222,128,0.65)";
+          ctx.lineWidth = 1.5;
+          for (const [a, b] of HAND_CONNECTIONS) {
+            ctx.beginPath();
+            ctx.moveTo(lm[a].x * canvas.width, lm[a].y * canvas.height);
+            ctx.lineTo(lm[b].x * canvas.width, lm[b].y * canvas.height);
+            ctx.stroke();
+          }
+          for (const pt of lm) {
+            ctx.beginPath();
+            ctx.arc(pt.x * canvas.width, pt.y * canvas.height, 3, 0, Math.PI * 2);
+            ctx.fillStyle = "#4ade80";
+            ctx.fill();
+          }
+        }
+      }
+    }
+    if (!lm) {
+      setHandDetected(false);
+      dragging.current = null;
+      lastPinchPos.current = null;
+      prevPinchPos.current = null;
+      setGesture("NO HAND DETECTED");
+      return;
+    }
+    setHandDetected(true);
+    const stage = stageRef.current;
+    if (!stage) return;
+    const sr = stage.getBoundingClientRect();
+    const fingerX = (1 - lm[8].x) * sr.width;
+    const fingerY = lm[8].y * sr.height;
+    const pinching = isPinching(lm);
+    const fingers = countFingers(lm);
+
+    // 2 fingers = scatter, 3 fingers = stack (debounced via ref)
+    if (!pinching && fingers === 2) {
+      setGesture("2 FINGERS — SCATTER");
+      if (!gestureDebounce.current) {
+        gestureDebounce.current = true;
+        scatterRef.current();
+        setTimeout(() => { gestureDebounce.current = false; }, 1200);
+      }
+      return;
+    }
+    if (!pinching && fingers === 3) {
+      setGesture("3 FINGERS — STACK");
+      if (!gestureDebounce.current) {
+        gestureDebounce.current = true;
+        stackRef.current();
+        setTimeout(() => { gestureDebounce.current = false; }, 1200);
+      }
+      return;
+    }
+
+    if (pinching) {
+      setGesture("PINCH — GRAB & MOVE");
+      const cur = { x: fingerX, y: fingerY };
+      if (!dragging.current) {
+        const hit = [...cards].sort((a, b) => b.z - a.z).find(c => {
+          const W = 160, H = 210;
+          return fingerX >= c.x && fingerX <= c.x + W && fingerY >= c.y && fingerY <= c.y + H;
+        });
+        if (hit) {
+          bringToFront(hit.id);
+          dragging.current = { id: hit.id, offX: fingerX - hit.x, offY: fingerY - hit.y };
+        }
+        lastPinchPos.current = cur;
+        prevPinchPos.current = cur;
+      } else {
+        const { id, offX, offY } = dragging.current;
+        const vx = prevPinchPos.current ? cur.x - prevPinchPos.current.x : 0;
+        const vy = prevPinchPos.current ? cur.y - prevPinchPos.current.y : 0;
+        prevPinchPos.current = lastPinchPos.current;
+        lastPinchPos.current = cur;
+        setCards(prev => prev.map(c => c.id === id
+          ? { ...c, x: fingerX - offX, y: fingerY - offY, vx, vy } : c));
+      }
+    } else {
+      if (dragging.current) {
+        const id = dragging.current.id;
+        const vx = lastPinchPos.current && prevPinchPos.current
+          ? (lastPinchPos.current.x - prevPinchPos.current.x) * 0.6 : 0;
+        const vy = lastPinchPos.current && prevPinchPos.current
+          ? (lastPinchPos.current.y - prevPinchPos.current.y) * 0.6 : 0;
+        setCards(prev => prev.map(c => c.id === id ? { ...c, vx, vy } : c));
+      }
+      dragging.current = null;
+      lastPinchPos.current = null;
+      prevPinchPos.current = null;
+      setGesture("OPEN — HOVER TO BROWSE");
+    }
+  }, [cards, bringToFront]);
+
+  const startCamera = useCallback(async () => {
+    if (!videoRef.current) return;
+    setStatus("loading");
+    try {
+      const hands = new Hands({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}` });
+      hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.7, minTrackingConfidence: 0.6 });
+      hands.onResults(onResults);
+      handsRef.current = hands;
+      const cam = new Camera(videoRef.current, {
+        onFrame: async () => { if (videoRef.current) await hands.send({ image: videoRef.current }); },
+        width: 320, height: 240,
+      });
+      await cam.start();
+      cameraRef.current = cam;
+      setCameraOn(true);
+      setStatus("ready");
+      setGesture("HAND GESTURE ACTIVE");
+    } catch (err) {
+      console.error(err);
+      setStatus("error");
+    }
+  }, [onResults]);
+
+  const stopCamera = useCallback(() => {
+    cameraRef.current?.stop();
+    handsRef.current?.close();
+    cameraRef.current = null;
+    handsRef.current = null;
+    setCameraOn(false);
+    setHandDetected(false);
+    setGesture("AWAITING INPUT");
+    setStatus("idle");
+  }, []);
+
+  useEffect(() => () => { stopCamera(); }, [stopCamera]);
+
+  const scatter = () => setCards(prev => prev.map(c => ({
+    ...c,
+    x: 60 + Math.random() * (window.innerWidth - 280),
+    y: 60 + Math.random() * (window.innerHeight - 320),
+    rot: (Math.random() - 0.5) * 22,
+    vx: (Math.random() - 0.5) * 10,
+    vy: (Math.random() - 0.5) * 10,
+  })));
+
+  const stack = () => setCards(prev => prev.map((c, i) => ({
+    ...c,
+    x: window.innerWidth / 2 - 80 + i * 2,
+    y: window.innerHeight / 2 - 105 + i * 2,
+    rot: (Math.random() - 0.5) * 5,
+    vx: 0, vy: 0,
+  })));
+
+  useEffect(() => { scatterRef.current = scatter; }, [cards]);
+  useEffect(() => { stackRef.current = stack; }, [cards]);
+
   return (
-    <section className="min-h-screen pt-24 pb-16 luxury-gradient-subtle">
-      <div className="max-w-7xl mx-auto px-6 lg:px-8">
-        {/* Header */}
-        <div className="text-center mb-12">
-          <h1 className="text-4xl md:text-5xl luxury-heading text-primary mb-6">
-            INTERACTIVE GALLERY
-          </h1>
-          <p className="text-lg luxury-body text-secondary max-w-2xl mx-auto mb-8">
-            Experience our portfolio with cutting-edge camera tracking technology. 
-            Enable your camera and use hand gestures to interact with images.
-          </p>
-          
-          {/* Camera Controls */}
-          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-8">
-            <button
-              onClick={isCameraEnabled ? stopCamera : initializeCamera}
-              className={`luxury-button-primary ${isCameraEnabled ? 'bg-red-600 hover:bg-red-700' : ''}`}
-            >
-              {isCameraEnabled ? '📹 DISABLE TRACKING' : '📹 ENABLE CAMERA TRACKING'}
-            </button>
-            
-            {isCameraEnabled && (
-              <div className="flex items-center space-x-2 text-sm luxury-body">
-                <div className={`w-3 h-3 rounded-full ${handPosition.isDetected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                <span>{handPosition.isDetected ? 'Hand Detected' : 'Move your hand in view'}</span>
-              </div>
-            )}
-          </div>
-        </div>
+    <Box style={{ background: "#050505", minHeight: "100vh", overflow: "hidden" }} color="white">
 
-        {/* Camera Feed (Hidden) */}
-        <div className="hidden">
-          <video ref={videoRef} autoPlay muted playsInline />
-          <canvas ref={canvasRef} />
-        </div>
+      {/* ── Top HUD bar ── */}
+      <Flex position="fixed" top={0} left={0} right={0} zIndex={1000}
+        align="center" justify="space-between" px={6} h="52px"
+        style={{ background: "rgba(5,5,5,0.92)", borderBottom: "1px solid rgba(74,222,128,0.12)", backdropFilter: "blur(12px)" }}>
 
-        {/* Hand Cursor */}
-        {isCameraEnabled && handPosition.isDetected && (
-          <div
-            className="fixed w-8 h-8 pointer-events-none z-50 transition-all duration-100"
-            style={{
-              left: `${handPosition.x}px`,
-              top: `${handPosition.y + 100}px`, // Offset for header
-              transform: 'translate(-50%, -50%)'
-            }}
-          >
-            <div className="w-full h-full bg-accent rounded-full shadow-lg animate-pulse border-2 border-primary">
-              <div className="w-2 h-2 bg-primary rounded-full absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2"></div>
-            </div>
-          </div>
+        {/* Left: brand + status */}
+        <Flex align="center" gap={4}>
+          <Flex align="center" gap={2}>
+            <Box w="6px" h="6px" borderRadius="full"
+              style={{ background: cameraOn && handDetected ? "#4ade80" : cameraOn ? "#facc15" : "#374151",
+                boxShadow: cameraOn && handDetected ? "0 0 8px #4ade80" : "none",
+                transition: "all 0.3s" }} />
+            <Text fontSize="10px" fontWeight="700" letterSpacing="0.35em"
+              style={{ color: "#4ade80", fontFamily: "monospace" }}>HAND GESTURE CONTROL</Text>
+          </Flex>
+          <Box w="1px" h="20px" style={{ background: "rgba(74,222,128,0.15)" }} />
+          <Text fontSize="10px" letterSpacing="0.2em"
+            style={{ color: "rgba(255,255,255,0.35)", fontFamily: "monospace" }}>
+            {cards.length} OBJECTS
+          </Text>
+        </Flex>
+
+        {/* Center: gesture readout */}
+        <Flex align="center" gap={3}
+          px={4} py={1}
+          style={{ border: "1px solid rgba(74,222,128,0.15)", background: "rgba(74,222,128,0.04)" }}>
+          <Box w="5px" h="5px" borderRadius="full"
+            style={{ background: cameraOn ? "#4ade80" : "#374151",
+              animation: cameraOn ? "pulse 2s infinite" : "none" }} />
+          <Text fontSize="10px" fontWeight="700" letterSpacing="0.25em"
+            style={{ color: cameraOn ? "#4ade80" : "rgba(255,255,255,0.2)", fontFamily: "monospace", minWidth: 220, textAlign: "center" }}>
+            {gesture}
+          </Text>
+        </Flex>
+
+        {/* Right: controls */}
+        <Flex align="center" gap={2}>
+          <Text fontSize="8px" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "'Inter', sans-serif" }}>
+            2 FINGERS = SCATTER &nbsp;|&nbsp; 3 FINGERS = STACK &nbsp;|&nbsp; PINCH = GRAB &nbsp;|&nbsp; DBL-CLICK = FULLSCREEN
+          </Text>
+          <Box w="1px" h="20px" style={{ background: "rgba(74,222,128,0.15)" }} />
+          <Box as="button" px={4} py={1} fontSize="9px" fontWeight="700" letterSpacing="0.2em"
+            onClick={cameraOn ? stopCamera : startCamera}
+            disabled={status === "loading"}
+            style={{ fontFamily: "monospace",
+              background: cameraOn ? "rgba(239,68,68,0.08)" : "rgba(74,222,128,0.08)",
+              border: `1px solid ${cameraOn ? "rgba(239,68,68,0.4)" : "rgba(74,222,128,0.4)"}`,
+              color: cameraOn ? "#ef4444" : "#4ade80",
+              cursor: status === "loading" ? "wait" : "pointer",
+              transition: "all 0.2s" }}>
+            {status === "loading" ? "LOADING" : cameraOn ? "STOP" : "START CAMERA"}
+          </Box>
+          {status === "error" && (
+            <Text fontSize="8px" style={{ color: "#ef4444", fontFamily: "monospace" }}>ACCESS DENIED</Text>
+          )}
+        </Flex>
+      </Flex>
+
+      {/* hidden camera + canvas — MediaPipe still needs the video element */}
+      <Box style={{ display: "none" }}>
+        <video ref={videoRef} autoPlay muted playsInline />
+        <canvas ref={canvasRef} width={320} height={240} />
+      </Box>
+
+      {/* ── Stage ── */}
+      <Box ref={stageRef} position="fixed" inset={0} pt="52px" style={{ cursor: "default" }}>
+        {cards.length === 0 && (
+          <Flex align="center" justify="center" h="100%">
+            <Box textAlign="center">
+              <Text fontSize="10px" fontWeight="700" letterSpacing="0.4em" mb={2}
+                style={{ color: "rgba(74,222,128,0.2)", fontFamily: "monospace" }}>NO IMAGES FOUND</Text>
+              <Text fontSize="10px" style={{ color: "rgba(255,255,255,0.15)", fontFamily: "monospace" }}>
+                UPLOAD IMAGES FROM THE ADMIN PANEL
+              </Text>
+            </Box>
+          </Flex>
         )}
 
-        {/* Gallery Grid */}
-        <div 
-          ref={galleryRef}
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 relative"
-        >
-          {sampleImages.map((image, index) => {
-            const position = imagePositions[image.id] || { x: 0, y: 0, rotation: 0 };
-            const isHovered = hoveredImage === image.id;
-            
-            return (
-              <div
-                key={image.id}
-                className={`trackable-image group relative overflow-hidden luxury-card transition-all duration-500 cursor-pointer ${
-                  isHovered ? 'scale-105 shadow-2xl' : 'hover:scale-102'
-                }`}
-                style={{
-                  transform: `translate(${position.x}px, ${position.y}px) rotate(${position.rotation}deg)`,
-                  zIndex: isHovered ? 10 : 1
-                }}
-                onClick={() => setSelectedImage(image)}
-                onMouseEnter={() => !isCameraEnabled && setHoveredImage(image.id)}
-                onMouseLeave={() => !isCameraEnabled && setHoveredImage(null)}
-              >
-                <div className="aspect-square overflow-hidden">
-                  <img
-                    src={image.thumbnail}
-                    alt={image.title}
-                    className={`w-full h-full object-cover transition-all duration-700 ${
-                      isHovered ? 'scale-110 brightness-110' : 'group-hover:scale-105'
-                    }`}
-                  />
-                </div>
-                
-                {/* Overlay */}
-                <div className={`absolute inset-0 bg-gradient-to-t from-primary/80 via-transparent to-transparent transition-all duration-500 ${
-                  isHovered ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                }`}>
-                  <div className="absolute bottom-0 left-0 right-0 p-6">
-                    <h3 className="text-xl font-light text-luxury-beige-50 mb-2 tracking-wide">
-                      {image.title}
-                    </h3>
-                    <p className="text-sm text-luxury-beige-200 tracking-wider uppercase">
-                      {image.category}
-                    </p>
-                  </div>
-                </div>
+        {cards.map(card => (
+          <Box key={card.id} position="absolute"
+            style={{ left: card.x, top: card.y, width: 160, zIndex: card.z,
+              transform: `rotate(${card.rot}deg)`,
+              cursor: "grab", userSelect: "none", willChange: "transform" }}
+            onMouseDown={e => onMouseDown(e, card.id)}
+            onTouchStart={e => onTouchStart(e, card.id)}
+            onDoubleClick={() => setLightbox(card)}>
 
-                {/* Interactive Glow Effect */}
-                {isHovered && isCameraEnabled && (
-                  <div className="absolute inset-0 border-2 border-accent animate-pulse rounded-lg"></div>
+            <Box borderRadius="4px" overflow="hidden"
+              style={{ border: "1px solid rgba(74,222,128,0.18)", background: "#0a0a0a",
+                boxShadow: `0 ${6 + card.z * 0.3}px ${20 + card.z}px rgba(0,0,0,0.75), 0 0 0 1px rgba(74,222,128,0.06)` }}>
+
+              <Box position="relative" style={{ aspectRatio: "3/4" }}>
+                <Image src={card.url} alt={card.title} w="full" h="full" objectFit="cover" display="block" draggable={false} />
+                <div className="scan-line" />
+                <HUDCorners />
+                {card.category && (
+                  <Box position="absolute" top={2} right={2} px={1} py={0.5}
+                    style={{ background: "rgba(5,5,5,0.75)", border: "1px solid rgba(74,222,128,0.3)", backdropFilter: "blur(4px)" }}>
+                    <Text fontSize="7px" fontWeight="700" letterSpacing="0.15em"
+                      style={{ color: "#4ade80", fontFamily: "monospace" }}>
+                      {card.category.toUpperCase()}
+                    </Text>
+                  </Box>
                 )}
-              </div>
-            );
-          })}
-        </div>
+              </Box>
 
-        {/* Instructions */}
-        {isCameraEnabled && (
-          <div className="mt-12 text-center">
-            <div className="luxury-card p-6 max-w-2xl mx-auto">
-              <h3 className="text-xl luxury-heading text-primary mb-4">
-                HOW TO USE CAMERA TRACKING
-              </h3>
-              <div className="space-y-2 luxury-body text-secondary">
-                <p>✋ Hold your hand up in front of the camera</p>
-                <p>👆 Move your hand to hover over images</p>
-                <p>🖼️ Images will respond to your hand movements</p>
-                <p>👆 Tap on images to view them in full size</p>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+              <Box px={2} py={2} style={{ background: "#0c0c0c", borderTop: "1px solid rgba(74,222,128,0.08)" }}>
+                <Text fontSize="9px" fontWeight="700" color="white" noOfLines={1}
+                  style={{ fontFamily: "monospace", letterSpacing: "0.05em" }}>
+                  {card.title || "UNTITLED"}
+                </Text>
+                {card.location && (
+                  <Text fontSize="7px" mt={0.5}
+                    style={{ color: "rgba(74,222,128,0.45)", fontFamily: "monospace" }}>
+                    {card.location.toUpperCase()}
+                  </Text>
+                )}
+              </Box>
+            </Box>
+          </Box>
+        ))}
+      </Box>
 
-      {/* Lightbox Modal */}
-      {selectedImage && (
-        <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4">
-          <div className="relative max-w-4xl max-h-full">
-            <button
-              onClick={() => setSelectedImage(null)}
-              className="absolute top-4 right-4 text-white text-2xl hover:text-accent transition-colors z-10"
-            >
-              ✕
-            </button>
-            <img
-              src={selectedImage.url}
-              alt={selectedImage.title}
-              className="max-w-full max-h-full object-contain"
-            />
-            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-6">
-              <h3 className="text-2xl font-light text-white mb-2">
-                {selectedImage.title}
-              </h3>
-              <p className="text-accent tracking-wider uppercase">
-                {selectedImage.category}
-              </p>
-            </div>
-          </div>
-        </div>
+      {/* ── Lightbox ── */}
+      {lightbox && (
+        <Box position="fixed" inset={0} zIndex={2000}
+          display="flex" alignItems="center" justifyContent="center"
+          style={{ background: "rgba(0,0,0,0.97)", backdropFilter: "blur(24px)" }}
+          onClick={() => setLightbox(null)}>
+
+          <Box position="absolute" inset={0} pointerEvents="none">
+            <div className="corner-tl" style={{ top: 16, left: 16, width: 24, height: 24, opacity: 1 }} />
+            <div className="corner-tr" style={{ top: 16, right: 16, width: 24, height: 24, opacity: 1 }} />
+            <div className="corner-bl" style={{ bottom: 16, left: 16, width: 24, height: 24, opacity: 1 }} />
+            <div className="corner-br" style={{ bottom: 16, right: 16, width: 24, height: 24, opacity: 1 }} />
+            <Flex position="absolute" top={4} left="50%" transform="translateX(-50%)" align="center" gap={3}>
+              <Box w="5px" h="5px" borderRadius="full" bg="green.400" className="hud-pulse" />
+              <Text fontSize="9px" fontWeight="700" letterSpacing="0.35em"
+                style={{ color: "#4ade80", fontFamily: "monospace" }}>GRAMTIME VISUALS</Text>
+            </Flex>
+          </Box>
+
+          <Box as="button" position="absolute" top={6} right={6}
+            w={9} h={9} display="flex" alignItems="center" justifyContent="center"
+            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)",
+              color: "rgba(255,255,255,0.6)", cursor: "pointer", fontSize: "18px", borderRadius: 2 }}
+            onClick={() => setLightbox(null)}>x</Box>
+
+          <Box position="relative" maxW="85vw" maxH="85vh"
+            style={{ border: "1px solid rgba(74,222,128,0.2)", boxShadow: "0 0 80px rgba(74,222,128,0.08)" }}
+            onClick={e => e.stopPropagation()}>
+            <Image src={lightbox.url} alt={lightbox.title} maxH="80vh" objectFit="contain" />
+            <div className="scan-line" />
+            <HUDCorners />
+          </Box>
+
+          <Box position="absolute" bottom={8} left="50%" transform="translateX(-50%)" textAlign="center">
+            <Text fontSize="lg" fontWeight="700" color="white" letterSpacing="0.05em" mb={1}>{lightbox.title}</Text>
+            <Flex align="center" justify="center" gap={3}>
+              {lightbox.category && (
+                <Text fontSize="9px" fontWeight="700" letterSpacing="0.2em"
+                  style={{ color: "#4ade80", fontFamily: "monospace" }}>{lightbox.category.toUpperCase()}</Text>
+              )}
+              {lightbox.location && (
+                <>
+                  <Box w="1px" h="10px" style={{ background: "rgba(74,222,128,0.3)" }} />
+                  <Text fontSize="9px" style={{ color: "rgba(255,255,255,0.4)", fontFamily: "monospace" }}>
+                    {lightbox.location.toUpperCase()}
+                  </Text>
+                </>
+              )}
+            </Flex>
+          </Box>
+        </Box>
       )}
-    </section>
+    </Box>
   );
 }

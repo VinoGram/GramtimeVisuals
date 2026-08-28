@@ -105,12 +105,10 @@ const navItems = [
   { id: "home",            label: "Experience",       tag: "01" },
   { id: "portfolio",       label: "Portfolio",        tag: "02" },
   { id: "services",        label: "Packages",         tag: "03" },
-  { id: "consultation",    label: "Consultation",     tag: "04" },
-  { id: "about",           label: "About",            tag: "05" },
-  { id: "blog",            label: "Journal",          tag: "06" },
-  { id: "shop",            label: "Shop",             tag: "07" },
-  { id: "private-gallery", label: "Client Gallery",   tag: "08" },
-  { id: "contact",         label: "Inquire",          tag: "09" },
+  { id: "about",           label: "About",            tag: "04" },
+  { id: "blog",            label: "Journal",          tag: "05" },
+  { id: "shop",            label: "Shop",             tag: "06" },
+  { id: "client-gallery",  label: "Client Gallery",   tag: "07" },
 ];
 
 export function Navigation({ currentSection, setCurrentSection, isScrolled }: NavigationProps) {
@@ -135,6 +133,9 @@ export function Navigation({ currentSection, setCurrentSection, isScrolled }: Na
   }, [isMenuOpen]);
 
   const navigate = (id: string) => {
+    if (id === "home") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
     setCurrentSection(id);
     setIsMenuOpen(false);
   };
@@ -205,15 +206,16 @@ export function Navigation({ currentSection, setCurrentSection, isScrolled }: Na
           <Flex align="center" gap={4}>
             {/* CTA button — desktop */}
             <Box
-              as="button"
+              as="a"
+              href="http://localhost:5173"
+              target="_blank"
               display={{ base: "none", md: "flex" }}
-              onClick={() => navigate("contact")}
               className="cta-btn"
               px={5} py={2}
               fontSize="xs" fontWeight="700" letterSpacing="0.15em"
               color="black" bg="#4ade80"
               borderRadius="full"
-              style={{ border: "none", cursor: "pointer" }}
+              style={{ border: "none", cursor: "pointer", textDecoration: "none" }}
             >
               <Box as="span">BOOK NOW</Box>
             </Box>
@@ -308,7 +310,7 @@ export function Navigation({ currentSection, setCurrentSection, isScrolled }: Na
         {/* Nav items — bento grid style */}
         <Box p={6}>
           <Grid templateColumns="1fr 1fr" gap={3} mb={6}>
-            {navItems.slice(0, 8).map((item, i) => (
+            {navItems.slice(0, 6).map((item, i) => (
               <GridItem key={item.id} colSpan={i === 0 ? 2 : 1}>
                 <Box
                   as="button"
@@ -355,7 +357,38 @@ export function Navigation({ currentSection, setCurrentSection, isScrolled }: Na
           {/* Inquire — full width CTA tile */}
           <Box
             as="button"
-            onClick={() => navigate("contact")}
+            onClick={() => navigate('client-gallery')}
+            w="full" p={5}
+            style={{
+              background: "linear-gradient(135deg, #0f0f0f 0%, #0d2818 100%)",
+              borderRadius: "14px",
+              cursor: "pointer",
+              border: "1px solid rgba(74,222,128,0.2)",
+              marginBottom: "12px",
+              display: "block",
+            }}
+          >
+            <Flex align="center" justify="space-between">
+              <Box textAlign="left">
+                <Text fontSize="9px" fontWeight="700" letterSpacing="0.2em" color="rgba(74,222,128,0.5)" mb={1}>EXCLUSIVE</Text>
+                <Text fontSize="xl" fontWeight="800" letterSpacing="-0.01em" color="white">Client Gallery</Text>
+                <Text fontSize="xs" color="rgba(255,255,255,0.4)" fontWeight="500" mt={0.5}>View your private photos →</Text>
+              </Box>
+              <Box
+                w={10} h={10} borderRadius="full"
+                display="flex" alignItems="center" justifyContent="center"
+                style={{ background: "rgba(74,222,128,0.15)", border: "1px solid rgba(74,222,128,0.3)", color: "#4ade80", fontSize: "18px" }}
+              >
+                →
+              </Box>
+            </Flex>
+          </Box>
+
+          {/* Book Now CTA */}
+          <Box
+            as="a"
+            href="http://localhost:5173"
+            target="_blank"
             w="full" p={5}
             style={{
               background: "linear-gradient(135deg, #4ade80 0%, #22c55e 100%)",
@@ -363,12 +396,14 @@ export function Navigation({ currentSection, setCurrentSection, isScrolled }: Na
               cursor: "pointer",
               border: "none",
               marginBottom: "24px",
+              display: "block",
+              textDecoration: "none",
             }}
           >
             <Flex align="center" justify="space-between">
               <Box textAlign="left">
-                <Text fontSize="9px" fontWeight="700" letterSpacing="0.2em" color="rgba(0,0,0,0.5)" mb={1}>09</Text>
-                <Text fontSize="xl" fontWeight="800" letterSpacing="-0.01em" color="black">Inquire</Text>
+                <Text fontSize="9px" fontWeight="700" letterSpacing="0.2em" color="rgba(0,0,0,0.5)" mb={1}>BOOK</Text>
+                <Text fontSize="xl" fontWeight="800" letterSpacing="-0.01em" color="black">Book Now</Text>
                 <Text fontSize="xs" color="rgba(0,0,0,0.6)" fontWeight="500" mt={0.5}>Start your journey →</Text>
               </Box>
               <Box

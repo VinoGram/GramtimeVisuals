@@ -128,58 +128,7 @@ function Reveal({ children, delay = 0, className = "blog-slideup" }: { children:
   );
 }
 
-const posts = [
-  {
-    _id: "1",
-    title: "Behind the Lens: Capturing Authentic Moments",
-    excerpt: "Discover the art of candid photography and how to capture genuine emotions in every frame. The best shots are never posed.",
-    featuredImageUrl: "https://images.unsplash.com/photo-1606216794074-735e91aa2c92?w=800&h=600&fit=crop",
-    publishDate: "2024-03-15",
-    tags: ["photography", "tips", "candid"],
-    readTime: "5 min read",
-    category: "CRAFT",
-  },
-  {
-    _id: "2",
-    title: "Wedding Photography Trends for 2024",
-    excerpt: "Explore the latest trends in wedding photography that couples are loving this year — from film grain to golden hour magic.",
-    featuredImageUrl: "https://images.unsplash.com/photo-1519741497674-611481863552?w=800&h=600&fit=crop",
-    publishDate: "2024-03-10",
-    tags: ["weddings", "trends", "2024"],
-    readTime: "7 min read",
-    category: "WEDDINGS",
-  },
-  {
-    _id: "3",
-    title: "The Perfect Portrait: Lighting Techniques",
-    excerpt: "Master the fundamentals of portrait lighting to create stunning, professional images that speak volumes.",
-    featuredImageUrl: "https://images.unsplash.com/photo-1554048612-b6a482b224b8?w=800&h=600&fit=crop",
-    publishDate: "2024-03-05",
-    tags: ["portraits", "lighting", "techniques"],
-    readTime: "6 min read",
-    category: "PORTRAITS",
-  },
-  {
-    _id: "4",
-    title: "Drone Cinematography: A New Perspective",
-    excerpt: "How aerial shots are transforming wedding films and event coverage into cinematic masterpieces.",
-    featuredImageUrl: "https://images.unsplash.com/photo-1473968512647-3e447244af8f?w=800&h=600&fit=crop",
-    publishDate: "2024-02-28",
-    tags: ["drone", "cinematography", "aerial"],
-    readTime: "4 min read",
-    category: "FILM",
-  },
-  {
-    _id: "5",
-    title: "Color Grading: The Soul of a Photograph",
-    excerpt: "Why color grading is the final brushstroke that transforms a good photo into an unforgettable one.",
-    featuredImageUrl: "https://images.unsplash.com/photo-1542038784456-1ea8e935640e?w=800&h=600&fit=crop",
-    publishDate: "2024-02-20",
-    tags: ["editing", "color", "post-production"],
-    readTime: "8 min read",
-    category: "EDITING",
-  },
-];
+const API = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const fmtDate = (d: string) => new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 
@@ -192,15 +141,35 @@ const categoryColors: Record<string, string> = {
 };
 
 export function Blog() {
+  const [posts, setPosts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [newsletterEmail, setNewsletterEmail] = useState("");
   const [activeCategory, setActiveCategory] = useState("ALL");
-  const categories = ["ALL", "CRAFT", "WEDDINGS", "PORTRAITS", "FILM", "EDITING"];
+
+  useEffect(() => {
+    fetch(`${API}/blog`)
+      .then(r => r.json())
+      .then(({ posts: fetched }) => { setPosts(fetched || []); })
+      .catch(() => setPosts([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const categories = ["ALL", "CRAFT", "WEDDINGS", "PORTRAITS", "FILM", "EDITING", "BEHIND THE SCENES"];
   const filtered = activeCategory === "ALL" ? posts : posts.filter(p => p.category === activeCategory);
 
-  const handleSubscribe = (e: React.FormEvent) => {
+  const handleSubscribe = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newsletterEmail) return;
-    toast.success("You're subscribed! Stay inspired.");
+    try {
+      await fetch(`${API}/newsletter/subscribe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: newsletterEmail }),
+      });
+      toast.success("You're subscribed! Stay inspired.");
+    } catch {
+      toast.error('Something went wrong. Please try again.');
+    }
     setNewsletterEmail("");
   };
 
@@ -259,12 +228,9 @@ export function Blog() {
           {[...Array(2)].map((_, ri) => (
             <Flex key={ri} gap={8} px={8} align="center" flexShrink={0}>
               {["Wedding Photography", "Portrait Sessions", "Drone Coverage", "Color Grading", "Event Films", "Studio Shoots", "Engagement Sessions", "Behind the Scenes"].map((item) => (
-                <Flex key={item} align="center" gap={3} flexShrink={0}>
-                  <Box w={1.5} h={1.5} borderRadius="full" bg="green.400" />
-                  <Text fontSize="xs" fontWeight="600" letterSpacing="0.2em" color="gray.400" textTransform="uppercase" whiteSpace="nowrap">
-                    {item}
-                  </Text>
-                </Flex>
+                <Text key={item} fontSize="xs" fontWeight="600" letterSpacing="0.2em" color="gray.400" textTransform="uppercase" whiteSpace="nowrap" flexShrink={0}>
+                  {item}
+                </Text>
               ))}
             </Flex>
           ))}
@@ -300,7 +266,30 @@ export function Blog() {
           </Flex>
         </Reveal>
 
+        {/* ── EMPTY / LOADING STATE ────────────────────────────────────── */}
+        {loading && (
+          <Flex justify="center" align="center" minH="300px">
+            <Text fontSize="xs" fontWeight="700" letterSpacing="0.3em" color="green.400"
+              style={{ fontFamily: "monospace", animation: "fadeSlideIn 0.5s ease both" }}>
+              LOADING JOURNAL...
+            </Text>
+          </Flex>
+        )}
+
+        {!loading && posts.length === 0 && (
+          <Flex justify="center" align="center" minH="300px" direction="column" gap={3}>
+            <Text fontSize="xs" fontWeight="700" letterSpacing="0.3em" color="gray.600"
+              style={{ fontFamily: "monospace" }}>
+              NO ARTICLES YET
+            </Text>
+            <Text fontSize="sm" color="gray.700" fontWeight="300">
+              Journal posts published from the admin panel will appear here.
+            </Text>
+          </Flex>
+        )}
+
         {/* ── FEATURED POST (BENTO HERO TILE) ─────────────────────────── */}
+        {!loading && filtered.length > 0 && (
         <Reveal delay={0.1} className="blog-fadein">
           <Box
             className="post-card"
@@ -311,10 +300,9 @@ export function Blog() {
             transition="border-color 0.3s"
           >
             <Grid templateColumns={{ base: "1fr", lg: "1fr 1fr" }} minH="480px">
-              {/* Image side */}
               <Box overflow="hidden" position="relative">
                 <Image
-                  src={posts[0].featuredImageUrl} alt={posts[0].title}
+                  src={filtered[0].featuredImageUrl} alt={filtered[0].title}
                   w="full" h="full" objectFit="cover" minH="320px"
                   className="post-img"
                 />
@@ -324,49 +312,39 @@ export function Blog() {
                   display={{ base: "none", lg: "block" }}
                 />
               </Box>
-
-              {/* Content side */}
               <Flex direction="column" justify="space-between" p={{ base: 8, lg: 12 }}>
                 <Box>
                   <Flex align="center" gap={3} mb={6}>
                     <Box
                       px={3} py={1} borderRadius="full" fontSize="xs" fontWeight="700" letterSpacing="0.15em"
-                      style={{ background: categoryColors[posts[0].category] || "#4ade80", color: "#000" }}
+                      style={{ background: categoryColors[filtered[0].category] || "#4ade80", color: "#000" }}
                     >
-                      {posts[0].category}
+                      {filtered[0].category}
                     </Box>
-                    <Text fontSize="xs" color="gray.500" fontWeight="400">{posts[0].readTime}</Text>
+                    <Text fontSize="xs" color="gray.500" fontWeight="400">{filtered[0].readTime}</Text>
                   </Flex>
-
                   <Heading
                     fontSize={{ base: "2xl", md: "4xl" }} fontWeight="800"
                     letterSpacing="-0.02em" lineHeight="1.1" color="white" mb={4}
                     className="post-title"
                   >
-                    {posts[0].title}
+                    {filtered[0].title}
                   </Heading>
-
                   <Text color="gray.400" fontSize="md" fontWeight="300" lineHeight="1.8" mb={6}>
-                    {posts[0].excerpt}
+                    {filtered[0].excerpt}
                   </Text>
-
                   <Flex gap={2} flexWrap="wrap" mb={8}>
-                    {posts[0].tags.map((tag) => (
-                      <Text key={tag} fontSize="xs" color="gray.600" fontWeight="500" letterSpacing="0.1em">
-                        #{tag}
-                      </Text>
+                    {filtered[0].tags.map((tag: string) => (
+                      <Text key={tag} fontSize="xs" color="gray.600" fontWeight="500" letterSpacing="0.1em">#{tag}</Text>
                     ))}
                   </Flex>
                 </Box>
-
                 <Flex align="center" justify="space-between">
-                  <Text fontSize="xs" color="gray.600" fontWeight="400">{fmtDate(posts[0].publishDate)}</Text>
+                  <Text fontSize="xs" color="gray.600" fontWeight="400">{fmtDate(filtered[0].publishDate)}</Text>
                   <Box
-                    as="button"
-                    px={6} py={3} bg="green.400" color="black" fontWeight="700"
+                    as="button" px={6} py={3} bg="green.400" color="black" fontWeight="700"
                     fontSize="xs" letterSpacing="0.15em" borderRadius="full"
-                    transition="all 0.2s"
-                    _hover={{ bg: "green.300", transform: "translateY(-2px)" }}
+                    transition="all 0.2s" _hover={{ bg: "green.300", transform: "translateY(-2px)" }}
                   >
                     READ ARTICLE →
                   </Box>
@@ -375,13 +353,14 @@ export function Blog() {
             </Grid>
           </Box>
         </Reveal>
+        )}
 
         {/* ── BENTO GRID — remaining posts ────────────────────────────── */}
         <Grid templateColumns={{ base: "1fr", md: "repeat(6, 1fr)" }} gap={4} mb={16}>
 
           {/* Post 2 — tall left (3 cols) */}
           {filtered.slice(1, 2).map((post) => (
-            <GridItem key={post._id} colSpan={{ base: 1, md: 3 }}>
+            <GridItem key={post.id} colSpan={{ base: 1, md: 3 }}>
               <Reveal delay={0.1} className="blog-fadein">
                 <Box
                   className="post-card" h="full" minH="420px" borderRadius="2xl"
@@ -416,7 +395,7 @@ export function Blog() {
 
           {/* Post 3 — tall right (3 cols) */}
           {filtered.slice(2, 3).map((post) => (
-            <GridItem key={post._id} colSpan={{ base: 1, md: 3 }}>
+            <GridItem key={post.id} colSpan={{ base: 1, md: 3 }}>
               <Reveal delay={0.2} className="blog-fadein">
                 <Box
                   className="post-card" h="full" minH="420px" borderRadius="2xl"
@@ -450,7 +429,7 @@ export function Blog() {
 
           {/* Posts 4 & 5 — wide short tiles (3 cols each) */}
           {filtered.slice(3, 5).map((post, i) => (
-            <GridItem key={post._id} colSpan={{ base: 1, md: 3 }}>
+            <GridItem key={post.id} colSpan={{ base: 1, md: 3 }}>
               <Reveal delay={0.1 + i * 0.1} className="blog-fadein">
                 <Box
                   className="post-card" borderRadius="2xl" overflow="hidden"

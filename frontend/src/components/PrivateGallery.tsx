@@ -79,7 +79,7 @@ export function PrivateGallery() {
     return (
       <Box as="section" minH="100vh" pt={24} pb={16} bg="gray.50">
         <Box maxW="7xl" mx="auto" px={{ base: 6, lg: 8 }}>
-          <VStack textAlign="center" mb={12} spacing={6}>
+          <VStack textAlign="center" mb={12} gap={6}>
             <Heading fontSize={{ base: "4xl", md: "5xl" }} fontWeight="300" letterSpacing="0.2em" color="gray.900">PRIVATE VIEWING ROOM</Heading>
             <Text fontSize="lg" color="gray.600" fontWeight="300" maxW="2xl" mx="auto">
               Access your exclusive gallery to view and download your beautiful images.
@@ -88,7 +88,7 @@ export function PrivateGallery() {
 
           <Box maxW="md" mx="auto" bg="white" p={{ base: 8, lg: 12 }} boxShadow="lg">
             <Box as="form" onSubmit={handleLogin}>
-              <VStack spacing={6}>
+              <VStack gap={6}>
                 <Box w="full">
                   <Text fontSize="sm" fontWeight="300" letterSpacing="0.1em" color="gray.700" mb={2}>GALLERY ID *</Text>
                   <Input value={galleryId} onChange={(e) => setGalleryId(e.target.value)} required placeholder="e.g., gallery-001" border="1px solid" borderColor="gray.300" _focus={{ borderColor: "gray.900" }} fontWeight="300" />
@@ -105,7 +105,7 @@ export function PrivateGallery() {
 
             <Box mt={8} pt={8} borderTop="1px solid" borderColor="gray.200">
               <Text fontSize="sm" fontWeight="300" letterSpacing="0.1em" color="gray.900" mb={4}>DEMO CREDENTIALS</Text>
-              <VStack spacing={2} fontSize="xs" color="gray.600" fontWeight="300" align="start">
+              <VStack gap={2} fontSize="xs" color="gray.600" fontWeight="300" align="start">
                 <Text>Gallery ID: gallery-001</Text>
                 <Text>Password: wedding2024</Text>
                 <Text pt={2}>Or</Text>
@@ -130,7 +130,7 @@ export function PrivateGallery() {
     <Box as="section" minH="100vh" pt={24} pb={16} bg="white">
       <Box maxW="7xl" mx="auto" px={{ base: 6, lg: 8 }}>
         <Flex justify="space-between" align="start" mb={12}>
-          <VStack align="start" spacing={2}>
+          <VStack align="start" gap={2}>
             <Heading fontSize={{ base: "4xl", md: "5xl" }} fontWeight="300" letterSpacing="0.2em" color="gray.900">{currentGallery?.clientName}</Heading>
             <Text fontSize="lg" color="gray.600" fontWeight="300">{currentGallery?.eventType} • {currentGallery?.eventDate}</Text>
             <Text fontSize="sm" color="gray.500" fontWeight="300">{currentGallery?.images.length} images available</Text>
@@ -163,7 +163,7 @@ export function PrivateGallery() {
 
         <Box mt={16} bg="gray.50" p={8}>
           <Heading fontSize="xl" fontWeight="300" letterSpacing="0.2em" color="gray.900" mb={4}>IMPORTANT INFORMATION</Heading>
-          <VStack spacing={2} fontSize="sm" color="gray.600" fontWeight="300" align="start">
+          <VStack gap={2} fontSize="sm" color="gray.600" fontWeight="300" align="start">
             {["Your gallery will be available for 90 days from the delivery date", "All images are high-resolution and ready for printing", "You have full print release for personal use", "For commercial use, please contact us for licensing", "We recommend backing up your images immediately", "Need help? Contact us at gallery@gramtimevisuals.com"].map((note) => (
               <Text key={note}>• {note}</Text>
             ))}

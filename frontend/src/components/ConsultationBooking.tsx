@@ -197,6 +197,100 @@ function ARSelectableCard({
   );
 }
 
+function QuickConsultForm() {
+  const [form, setForm] = useState({ name: "", email: "", phone: "", service: "", date: "", message: "" });
+  const [sent, setSent] = useState(false);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
+    setForm({ ...form, [e.target.name]: e.target.value });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await apiService.bookConsultation({ ...form, status: "pending", source: "quick-form" });
+    } catch {}
+    setSent(true);
+    toast.success("Request received! We'll be in touch within 24 hours.");
+  };
+
+  if (sent) {
+    return (
+      <Box p={10} textAlign="center" style={{ background: HUD_GREEN_FAINT, border: HUD_BORDER }}>
+        <Text fontSize="3xl" fontWeight="900" color="white" mb={2}>Request Sent ✓</Text>
+        <Text style={{ color: "rgba(255,255,255,0.6)", fontFamily: HUD_FONT }} fontSize="sm">
+          We'll reach out to {form.email} within 24 hours.
+        </Text>
+        <Button mt={6} className="ar-btn" fontSize="xs" letterSpacing="0.1em" px={6} py={4} onClick={() => setSent(false)}>
+          SEND ANOTHER
+        </Button>
+      </Box>
+    );
+  }
+
+  return (
+    <Box
+      as="form"
+      onSubmit={handleSubmit}
+      p={{ base: 6, md: 10 }}
+      style={{ background: HUD_PANEL, border: HUD_BORDER, boxShadow: `0 0 40px ${HUD_GREEN_FAINT}` }}
+    >
+      <Text fontSize="xs" fontWeight="700" letterSpacing="0.3em" mb={2} style={{ color: HUD_GREEN, fontFamily: HUD_FONT }}>
+        ◈ QUICK CONSULTATION REQUEST
+      </Text>
+      <Heading fontSize={{ base: "2xl", md: "3xl" }} fontWeight="900" color="white" mb={1}>
+        Book a Consultation
+      </Heading>
+      <Text fontSize="sm" mb={8} style={{ color: "rgba(255,255,255,0.5)" }}>
+        Fill in your details and we'll confirm your slot within 24 hours.
+      </Text>
+
+      <Grid templateColumns={{ base: "1fr", md: "1fr 1fr" }} gap={5} mb={5}>
+        {([[ "name", "FULL NAME *", "text", true ], ["email", "EMAIL *", "email", true], ["phone", "PHONE NUMBER", "tel", false], ["date", "PREFERRED DATE", "date", false]] as [string, string, string, boolean][]).map(([name, label, type, req]) => (
+          <Box key={name}>
+            <Text fontSize="xs" fontWeight="700" letterSpacing="0.15em" mb={2} style={{ color: HUD_GREEN, fontFamily: HUD_FONT }}>{label}</Text>
+            <input
+              name={name}
+              type={type}
+              value={(form as any)[name]}
+              onChange={handleChange}
+              required={req}
+              placeholder={label.replace(" *", "")}
+              className="ar-input"
+            />
+          </Box>
+        ))}
+      </Grid>
+
+      <Box mb={5}>
+        <Text fontSize="xs" fontWeight="700" letterSpacing="0.15em" mb={2} style={{ color: HUD_GREEN, fontFamily: HUD_FONT }}>SERVICE TYPE</Text>
+        <select name="service" value={form.service} onChange={handleChange} className="ar-input ar-select">
+          <option value="">Select a service</option>
+          {["Wedding Photography", "Engagement Session", "Portrait Photography", "Corporate Events", "Bespoke Experience"].map((s) => (
+            <option key={s} value={s}>{s}</option>
+          ))}
+        </select>
+      </Box>
+
+      <Box mb={8}>
+        <Text fontSize="xs" fontWeight="700" letterSpacing="0.15em" mb={2} style={{ color: HUD_GREEN, fontFamily: HUD_FONT }}>YOUR MESSAGE</Text>
+        <textarea
+          name="message"
+          value={form.message}
+          onChange={handleChange}
+          rows={4}
+          placeholder="Tell us about your vision..."
+          className="ar-input"
+          style={{ resize: "none", display: "block" }}
+        />
+      </Box>
+
+      <Button type="submit" w="full" className="ar-btn-primary" fontSize="sm" letterSpacing="0.15em" py={6}>
+        SEND CONSULTATION REQUEST →
+      </Button>
+    </Box>
+  );
+}
+
 export function ConsultationBooking() {
   const [step, setStep] = useState(1);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -298,6 +392,18 @@ export function ConsultationBooking() {
   return (
     <Box minH="100vh" pt={24} pb={20} style={{ background: HUD_BG }} color="white">
       <Box maxW="6xl" mx="auto" px={{ base: 4, lg: 8 }}>
+
+        {/* ── QUICK CONSULTATION FORM ── */}
+        <Box mb={20}>
+          <QuickConsultForm />
+        </Box>
+
+        {/* ── DIVIDER ── */}
+        <Flex align="center" gap={4} mb={16}>
+          <Box h="1px" flex={1} style={{ background: `linear-gradient(90deg, transparent, ${HUD_GREEN_DIM})` }} />
+          <Text fontSize="xs" fontWeight="700" letterSpacing="0.3em" style={{ color: HUD_GREEN, fontFamily: HUD_FONT }}>OR USE THE FULL BOOKING FLOW</Text>
+          <Box h="1px" flex={1} style={{ background: `linear-gradient(90deg, ${HUD_GREEN_DIM}, transparent)` }} />
+        </Flex>
 
         {/* ═══════════════════════════════════════════════════════════════════
             BOOKING CONFIRMED SCREEN

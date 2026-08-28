@@ -13,8 +13,8 @@ const theme = createSystem(defaultConfig, {
         }
       },
       fonts: {
-        heading: { value: '"Playfair Display", serif' },
-        body: { value: '"Inter", sans-serif' },
+        heading: { value: '"Inter", sans-serif' },
+        body: { value: '"Manrope", sans-serif' },
       }
     }
   }

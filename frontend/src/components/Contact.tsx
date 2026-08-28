@@ -13,11 +13,20 @@ export function Contact() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
-    // Simulate submission
-    await new Promise((r) => setTimeout(r, 1000));
-    toast.success("Inquiry sent! We'll respond within 24 hours.");
-    setFormData({ name: "", email: "", phone: "", sessionType: "", message: "" });
-    setSubmitting(false);
+    try {
+      const API = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      await fetch(`${API}/inquiries`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
+      toast.success("Inquiry sent! We'll respond within 24 hours.");
+      setFormData({ name: "", email: "", phone: "", sessionType: "", message: "" });
+    } catch {
+      toast.error('Failed to send. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {

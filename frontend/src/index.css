@@ -77,6 +77,18 @@
 html { scroll-behavior: smooth; }
 *, *::before, *::after { box-sizing: border-box; }
 
+body, button, input, textarea, select {
+  font-family: 'Manrope', sans-serif;
+  letter-spacing: -0.01em;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Inter', sans-serif;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
 /* ─────────────────────────────────────────────────────────────
    GLOBAL SVG ICON ANIMATIONS
    All <svg> elements get a smooth scale + glow on hover

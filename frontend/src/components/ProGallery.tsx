@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { toast } from "sonner";
-import { CameraTrackingGallery } from "./CameraTrackingGallery";
+import { apiService } from "../services/api-production";
+
+const API = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 interface Image {
   id: string;
@@ -37,94 +39,16 @@ interface CartItem {
   price: number;
 }
 
-// Sample gallery data
-const sampleGalleries: Gallery[] = [
-  {
-    id: "gallery-001",
-    clientName: "Sarah & Michael",
-    password: "wedding2024",
-    eventDate: "June 15, 2024",
-    eventType: "Wedding",
-    coverImage: "https://images.unsplash.com/photo-1519741497674-611481863552?w=800",
-    description: "Your beautiful wedding day at The Grand Estate",
-    expiryDate: "September 15, 2024",
-    allowDownloads: true,
-    allowFavorites: true,
-    allowShopping: true,
-    watermarked: false,
-    images: [
-      {
-        id: "img-1",
-        url: "https://images.unsplash.com/photo-1519741497674-611481863552?w=1920",
-        thumbnail: "https://images.unsplash.com/photo-1519741497674-611481863552?w=400",
-        filename: "wedding_ceremony_001.jpg",
-        width: 1920,
-        height: 1280,
-        favorite: false,
-        selected: false,
-      },
-      {
-        id: "img-2",
-        url: "https://images.unsplash.com/photo-1606800052052-a08af7148866?w=1920",
-        thumbnail: "https://images.unsplash.com/photo-1606800052052-a08af7148866?w=400",
-        filename: "wedding_reception_002.jpg",
-        width: 1920,
-        height: 1280,
-        favorite: false,
-        selected: false,
-      },
-      {
-        id: "img-3",
-        url: "https://images.unsplash.com/photo-1511285560929-80b456fea0bc?w=1920",
-        thumbnail: "https://images.unsplash.com/photo-1511285560929-80b456fea0bc?w=400",
-        filename: "wedding_couple_003.jpg",
-        width: 1920,
-        height: 1280,
-        favorite: false,
-        selected: false,
-      },
-      {
-        id: "img-4",
-        url: "https://images.unsplash.com/photo-1465495976277-4387d4b0b4c6?w=1920",
-        thumbnail: "https://images.unsplash.com/photo-1465495976277-4387d4b0b4c6?w=400",
-        filename: "wedding_details_004.jpg",
-        width: 1920,
-        height: 1280,
-        favorite: false,
-        selected: false,
-      },
-      {
-        id: "img-5",
-        url: "https://images.unsplash.com/photo-1583939003579-730e3918a45a?w=1920",
-        thumbnail: "https://images.unsplash.com/photo-1583939003579-730e3918a45a?w=400",
-        filename: "wedding_dance_005.jpg",
-        width: 1920,
-        height: 1280,
-        favorite: false,
-        selected: false,
-      },
-      {
-        id: "img-6",
-        url: "https://images.unsplash.com/photo-1591604466107-ec97de577aff?w=1920",
-        thumbnail: "https://images.unsplash.com/photo-1591604466107-ec97de577aff?w=400",
-        filename: "wedding_rings_006.jpg",
-        width: 1920,
-        height: 1280,
-        favorite: false,
-        selected: false,
-      },
-    ],
-  },
-];
+// Sample gallery data removed — auth now uses real backend
 
 type ViewMode = "grid" | "masonry" | "slideshow";
 type FilterMode = "all" | "favorites" | "selected";
 
 export function ProGallery() {
-  const [pageMode, setPageMode] = useState<'auth' | 'gallery' | 'camera-tracking'>('auth');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentGallery, setCurrentGallery] = useState<Gallery | null>(null);
   const [galleryId, setGalleryId] = useState("");
+  const [clientName, setClientName] = useState("");
   const [password, setPassword] = useState("");
   const [images, setImages] = useState<Image[]>([]);
   const [selectedImage, setSelectedImage] = useState<Image | null>(null);
@@ -136,33 +60,59 @@ export function ProGallery() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [slideshowIndex, setSlideshowIndex] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(false);
+  const [pinRequired, setPinRequired] = useState(false);
+  const [pin, setPin] = useState('');
+  const [pinVerified, setPinVerified] = useState(false);
+  const [pinError, setPinError] = useState('');
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-
-    setTimeout(() => {
-      const gallery = sampleGalleries.find(
-        (g) => g.id === galleryId && g.password === password
-      );
-
-      if (gallery) {
+    try {
+      const authResponse = await apiService.authenticateGallery(galleryId, password);
+      if (authResponse.gallery) {
+        const freshData = await apiService.getGallery(authResponse.gallery.id);
+        const gallery = freshData.gallery ?? freshData;
         setCurrentGallery(gallery);
-        setImages(gallery.images);
+        setImages((gallery.images || []).map((img: any) => ({ ...img, favorite: img.favorite ?? false, selected: false })));
         setIsAuthenticated(true);
-        toast.success(`Welcome back, ${gallery.clientName}!`);
-      } else {
-        toast.error("Invalid gallery ID or password. Please try again.");
+        if (gallery.allowDownloads) setPinRequired(true);
+        toast.success(`Welcome, ${gallery.clientName}!`);
       }
+    } catch {
+      toast.error("Invalid Gallery ID or password. Please try again.");
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
+  };
+
+  const verifyPin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPinError('');
+    try {
+      const token = localStorage.getItem('gallery_token');
+      const res = await fetch(`${API}/gallery/${currentGallery?.id}/verify-pin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ pin }),
+      });
+      if (res.ok) {
+        setPinVerified(true);
+        setPinRequired(false);
+        toast.success('PIN verified — downloads unlocked!');
+      } else {
+        setPinError('Invalid PIN. Please check the email sent to you.');
+      }
+    } catch {
+      setPinError('Verification failed. Please try again.');
+    }
   };
 
   const handleLogout = () => {
     setIsAuthenticated(false);
     setCurrentGallery(null);
     setImages([]);
+    setClientName("");
     setGalleryId("");
     setPassword("");
     setSelectedImage(null);
@@ -234,105 +184,149 @@ export function ProGallery() {
   const favoriteCount = images.filter((img) => img.favorite).length;
   const selectedCount = images.filter((img) => img.selected).length;
 
+  const authInputStyle: React.CSSProperties = {
+    width: "100%",
+    padding: "12px 16px",
+    background: "rgba(255,255,255,0.06)",
+    border: "1px solid rgba(255,255,255,0.12)",
+    borderRadius: "10px",
+    color: "white",
+    fontSize: "0.9rem",
+    fontFamily: "inherit",
+    outline: "none",
+    transition: "border-color 0.2s, box-shadow 0.2s",
+  };
+
   // Login Screen
-  if (!isAuthenticated && pageMode === 'auth') {
+  if (!isAuthenticated) {
     return (
-      <section className="min-h-screen pt-24 pb-16 luxury-gradient-subtle">
-        <div className="max-w-7xl mx-auto px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h1 className="text-4xl md:text-5xl luxury-heading text-primary mb-6">
-              CLIENT GALLERY
+      <section style={{ minHeight: "100vh", background: "linear-gradient(135deg, #0a0a0a 0%, #0d1f10 50%, #0a0a0a 100%)", paddingTop: "96px", paddingBottom: "64px" }}>
+        <div style={{ maxWidth: "1152px", margin: "0 auto", padding: "0 24px" }}>
+
+          {/* Header */}
+          <div style={{ textAlign: "center", marginBottom: "48px" }}>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: "8px", marginBottom: "20px" }}>
+              <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#4ade80" }} />
+              <span style={{ fontSize: "11px", color: "#4ade80", fontWeight: 600, letterSpacing: "0.3em" }}>ACCRA, GHANA</span>
+            </div>
+            <h1 style={{ fontSize: "clamp(2.5rem, 6vw, 4.5rem)", fontWeight: 800, letterSpacing: "-0.02em", lineHeight: 1.1, marginBottom: "20px" }}>
+              <span style={{ color: "white" }}>GRAMTIME</span><br />
+              <span style={{ color: "#4ade80" }}>VISUALS</span>
             </h1>
-            <p className="text-lg luxury-body text-gray-600 max-w-2xl mx-auto mb-8">
+            <p style={{ fontSize: "1rem", color: "rgba(255,255,255,0.5)", maxWidth: "480px", margin: "0 auto 32px", lineHeight: 1.7, fontWeight: 300 }}>
               Access your private gallery to view, favorite, and download your images.
             </p>
-            
-            {/* Gallery Mode Selector */}
-            <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">
-              <button
-                onClick={() => setPageMode('auth')}
-                className={`luxury-button-secondary ${
-                  pageMode === 'auth' ? 'bg-primary text-white' : ''
-                }`}
-              >
-                <svg className="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                </svg>
-                PRIVATE GALLERY
-              </button>
-              <button
-                onClick={() => setPageMode('camera-tracking')}
-                className={`luxury-button-secondary ${
-                  pageMode === 'camera-tracking' ? 'bg-primary text-white' : ''
-                }`}
-              >
-                <svg className="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                </svg>
-                CAMERA TRACKING GALLERY
-              </button>
-            </div>
+
+
           </div>
 
-          {pageMode === 'auth' && (
-            <div className="max-w-md mx-auto luxury-card p-8 lg:p-12">
-              <form onSubmit={handleLogin} className="space-y-6">
-                <div>
-                  <label className="block text-sm luxury-subheading text-gray-600 mb-2">
-                    GALLERY ID *
-                  </label>
-                  <input
-                    type="text"
-                    value={galleryId}
-                    onChange={(e) => setGalleryId(e.target.value)}
-                    required
-                    placeholder="e.g., gallery-001"
-                    className="auth-input-field"
-                  />
-                </div>
+          {/* Auth card */}
+          <div style={{ maxWidth: "440px", margin: "0 auto", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(74,222,128,0.15)", borderRadius: "20px", padding: "40px 36px", boxShadow: "0 32px 80px rgba(0,0,0,0.5)" }}>
+            <form onSubmit={handleLogin} style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
 
-                <div>
-                  <label className="block text-sm luxury-subheading text-gray-600 mb-2">
-                    PASSWORD *
-                  </label>
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    placeholder="Enter your gallery password"
-                    className="auth-input-field"
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="auth-button"
-                >
-                  {isLoading ? "ACCESSING..." : "ACCESS GALLERY"}
-                </button>
-              </form>
-
-              <div className="mt-8 pt-8 border-t border-gray-200">
-                <h3 className="text-sm luxury-subheading text-gray-600 mb-4">
-                  DEMO CREDENTIALS
-                </h3>
-                <div className="space-y-2 text-xs luxury-body text-gray-600">
-                  <p>Gallery ID: gallery-001</p>
-                  <p>Password: wedding2024</p>
-                </div>
+              <div>
+                <label style={{ display: "block", fontSize: "10px", fontWeight: 700, letterSpacing: "0.2em", color: "rgba(255,255,255,0.5)", marginBottom: "8px" }}>GALLERY ID *</label>
+                <input
+                  type="text"
+                  value={galleryId}
+                  onChange={(e) => setGalleryId(e.target.value)}
+                  required
+                  placeholder="e.g. gallery-1234567890"
+                  style={authInputStyle}
+                  onFocus={(e) => { e.target.style.borderColor = "rgba(74,222,128,0.6)"; e.target.style.boxShadow = "0 0 0 3px rgba(74,222,128,0.1)"; }}
+                  onBlur={(e) => { e.target.style.borderColor = "rgba(255,255,255,0.12)"; e.target.style.boxShadow = "none"; }}
+                />
               </div>
-            </div>
-          )}
+
+              <div>
+                <label style={{ display: "block", fontSize: "10px", fontWeight: 700, letterSpacing: "0.2em", color: "rgba(255,255,255,0.5)", marginBottom: "8px" }}>PASSWORD *</label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  placeholder="••••••••"
+                  style={authInputStyle}
+                  onFocus={(e) => { e.target.style.borderColor = "rgba(74,222,128,0.6)"; e.target.style.boxShadow = "0 0 0 3px rgba(74,222,128,0.1)"; }}
+                  onBlur={(e) => { e.target.style.borderColor = "rgba(255,255,255,0.12)"; e.target.style.boxShadow = "none"; }}
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={isLoading}
+                style={{
+                  width: "100%",
+                  padding: "14px",
+                  background: isLoading ? "rgba(74,222,128,0.5)" : "#4ade80",
+                  color: "#000",
+                  border: "none",
+                  borderRadius: "10px",
+                  fontWeight: 700,
+                  fontSize: "0.8rem",
+                  letterSpacing: "0.12em",
+                  cursor: isLoading ? "not-allowed" : "pointer",
+                  fontFamily: "inherit",
+                  transition: "background 0.2s",
+                }}
+              >
+                {isLoading ? "ACCESSING..." : "ACCESS GALLERY"}
+              </button>
+            </form>
+
+
+          </div>
+
         </div>
       </section>
     );
   }
 
-  // Camera Tracking Gallery
-  if (pageMode === 'camera-tracking') {
-    return <CameraTrackingGallery />;
+  // PIN verification modal
+  if (pinRequired && isAuthenticated) {
+    return (
+      <section className="min-h-screen pt-24 pb-16" style={{ background: 'linear-gradient(135deg,#0f0f0f,#0d2818)' }}>
+        <div className="max-w-md mx-auto px-6" style={{ paddingTop: '80px' }}>
+          <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 16, padding: '40px 36px' }}>
+            <div style={{ textAlign: 'center', marginBottom: 28 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.3em', color: '#4ade80', marginBottom: 8 }}>GRAMTIME VISUALS</div>
+              <h2 style={{ fontSize: 22, fontWeight: 800, color: 'white', marginBottom: 8 }}>Enter Download PIN</h2>
+              <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', lineHeight: 1.6 }}>
+                A 6-digit PIN was sent to your email when your payment was approved. Enter it below to unlock downloads.
+              </p>
+            </div>
+            <form onSubmit={verifyPin}>
+              <input
+                type="text"
+                value={pin}
+                onChange={e => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                placeholder="000000"
+                maxLength={6}
+                required
+                style={{
+                  width: '100%', padding: '14px', textAlign: 'center',
+                  fontSize: 28, fontWeight: 900, letterSpacing: '0.4em',
+                  background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(74,222,128,0.3)',
+                  borderRadius: 10, color: '#4ade80', outline: 'none',
+                  fontFamily: 'monospace', marginBottom: 12,
+                }}
+              />
+              {pinError && <p style={{ color: '#f87171', fontSize: 13, marginBottom: 12, textAlign: 'center' }}>{pinError}</p>}
+              <button type="submit" style={{
+                width: '100%', padding: '13px', background: '#4ade80', color: '#000',
+                border: 'none', borderRadius: 10, fontWeight: 700, fontSize: 14,
+                letterSpacing: '0.05em', cursor: 'pointer', marginBottom: 12,
+              }}>VERIFY PIN</button>
+              <button type="button" onClick={() => setPinRequired(false)} style={{
+                width: '100%', padding: '11px', background: 'transparent',
+                border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10,
+                color: 'rgba(255,255,255,0.4)', fontSize: 13, cursor: 'pointer',
+              }}>Skip — Browse Without Downloads</button>
+            </form>
+          </div>
+        </div>
+      </section>
+    );
   }
 
   // Gallery View
@@ -441,12 +435,20 @@ export function ProGallery() {
               >
                 Select All
               </button>
-              {currentGallery?.allowDownloads && (
+              {currentGallery?.allowDownloads && pinVerified && (
                 <button
                   onClick={() => setShowDownloadOptions(true)}
                   className="px-4 py-2 bg-white text-gray-900 text-sm font-light tracking-wide hover:bg-gray-100 transition-colors"
                 >
                   DOWNLOAD
+                </button>
+              )}
+              {currentGallery?.allowDownloads && !pinVerified && (
+                <button
+                  onClick={() => setPinRequired(true)}
+                  className="px-4 py-2 border border-white text-white text-sm font-light tracking-wide hover:bg-white hover:text-gray-900 transition-colors"
+                >
+                  UNLOCK DOWNLOADS
                 </button>
               )}
               <button
@@ -591,11 +593,9 @@ export function ProGallery() {
                   {selectedImage.favorite ? "❤️" : "🤍"}
                 </button>
               )}
-              {currentGallery?.allowDownloads && (
+              {currentGallery?.allowDownloads && pinVerified && (
                 <button
-                  onClick={() => {
-                    toast.success(`Downloading ${selectedImage.filename}...`);
-                  }}
+                  onClick={() => { toast.success(`Downloading ${selectedImage.filename}...`); }}
                   className="px-4 py-2 bg-white text-gray-900 text-sm font-light hover:bg-gray-100"
                 >
                   DOWNLOAD

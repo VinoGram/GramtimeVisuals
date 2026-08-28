@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import {
   Box, Flex, Heading, Text, Button, VStack, HStack, Grid, GridItem, Input, Textarea
 } from "@chakra-ui/react";
+import { apiService } from "../services/api-production";
 
 interface BookingFormProps {
   niche: string;
@@ -66,7 +67,20 @@ export function BookingForm({ niche, packageName, onClose }: BookingFormProps) {
 
   const handleSubmit = async () => {
     setSubmitting(true);
-    await new Promise((r) => setTimeout(r, 1000));
+    try {
+      await apiService.bookConsultation({
+        fullName: formData.fullName,
+        email: formData.email,
+        phone: formData.phone,
+        eventDate: formData.eventDate,
+        eventLocation: formData.eventLocation,
+        additionalNotes: formData.additionalNotes,
+        packageName,
+        niche,
+        status: 'pending',
+        source: 'booking-form',
+      });
+    } catch {}
     generateAgreement();
     toast.success("Booking confirmed! Your agreement has been downloaded.");
     setSubmitting(false);
@@ -163,7 +177,7 @@ export function BookingForm({ niche, packageName, onClose }: BookingFormProps) {
               STEP 1 — TERMS & CONDITIONS
           ══════════════════════════════════════════════════════ */}
           {step === 1 && (
-            <VStack spacing={6} align="stretch">
+            <VStack gap={6} align="stretch">
               <Box>
                 <Heading fontSize="lg" fontWeight="700" color="gray.900" mb={1}>
                   Please Read Before Booking
@@ -180,7 +194,7 @@ export function BookingForm({ niche, packageName, onClose }: BookingFormProps) {
                 onScroll={handleScroll}
                 style={{ scrollbarWidth: "thin" }}
               >
-                <VStack spacing={5} align="start">
+                <VStack gap={5} align="start">
                   {terms.map(([title, body]) => (
                     <Box key={title as string}>
                       <Text fontSize="xs" fontWeight="700" letterSpacing="0.1em" color="green.600" mb={1}>
@@ -206,7 +220,7 @@ export function BookingForm({ niche, packageName, onClose }: BookingFormProps) {
                 bg={agreedToTerms ? "green.50" : "gray.50"}
                 transition="all 0.2s"
               >
-                <HStack align="start" spacing={3}>
+                <HStack align="start" gap={3}>
                   <Box
                     as="button"
                     onClick={() => setAgreedToTerms(!agreedToTerms)}
@@ -249,7 +263,7 @@ export function BookingForm({ niche, packageName, onClose }: BookingFormProps) {
               STEP 2 — CLIENT DETAILS
           ══════════════════════════════════════════════════════ */}
           {step === 2 && (
-            <VStack spacing={6} align="stretch">
+            <VStack gap={6} align="stretch">
               <Box>
                 <Heading fontSize="lg" fontWeight="700" color="gray.900" mb={1}>Your Details</Heading>
                 <Text fontSize="sm" color="gray.500" fontWeight="300">Tell us about your event so we can prepare.</Text>
@@ -296,7 +310,7 @@ export function BookingForm({ niche, packageName, onClose }: BookingFormProps) {
                   onBlur={(e) => e.target.style.borderColor = "#e2e8f0"} />
               </Box>
 
-              <HStack spacing={3}>
+              <HStack gap={3}>
                 <Button flex={1} variant="outline" borderColor="gray.200" color="gray.600"
                   fontWeight="600" letterSpacing="0.05em" py={5} borderRadius="xl"
                   onClick={() => setStep(1)} _hover={{ borderColor: "gray.400" }}>
@@ -324,7 +338,7 @@ export function BookingForm({ niche, packageName, onClose }: BookingFormProps) {
               STEP 3 — CONFIRM
           ══════════════════════════════════════════════════════ */}
           {step === 3 && (
-            <VStack spacing={5} align="stretch">
+            <VStack gap={5} align="stretch">
               <Box>
                 <Heading fontSize="lg" fontWeight="700" color="gray.900" mb={1}>Review & Confirm</Heading>
                 <Text fontSize="sm" color="gray.500" fontWeight="300">Check your details before confirming.</Text>
@@ -351,7 +365,7 @@ export function BookingForm({ niche, packageName, onClose }: BookingFormProps) {
                 ].map(([label, value]) => (
                   <Box key={label} p={4} borderRadius="xl" bg="gray.50" border="1px solid" borderColor="gray.100">
                     <Text fontSize="10px" fontWeight="700" letterSpacing="0.15em" color="gray.400" mb={1}>{label.toUpperCase()}</Text>
-                    <Text fontSize="sm" fontWeight="600" color="gray.900" noOfLines={1}>{value}</Text>
+                    <Text fontSize="sm" fontWeight="600" color="gray.900" style={{ overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{value}</Text>
                   </Box>
                 ))}
                 {formData.additionalNotes && (
@@ -364,7 +378,7 @@ export function BookingForm({ niche, packageName, onClose }: BookingFormProps) {
 
               {/* Agreement notice */}
               <Box p={4} borderRadius="xl" bg="green.50" border="1px solid" borderColor="green.200">
-                <HStack spacing={3}>
+                <HStack gap={3}>
                   <Box w={5} h={5} borderRadius="full" bg="green.500" display="flex" alignItems="center" justifyContent="center" flexShrink={0}>
                     <Text color="white" fontSize="10px" fontWeight="900">✓</Text>
                   </Box>
@@ -374,7 +388,7 @@ export function BookingForm({ niche, packageName, onClose }: BookingFormProps) {
                 </HStack>
               </Box>
 
-              <HStack spacing={3}>
+              <HStack gap={3}>
                 <Button flex={1} variant="outline" borderColor="gray.200" color="gray.600"
                   fontWeight="600" letterSpacing="0.05em" py={5} borderRadius="xl"
                   onClick={() => setStep(2)} _hover={{ borderColor: "gray.400" }}>
